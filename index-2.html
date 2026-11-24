@@ -1,0 +1,322 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOVA CHAT</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#101827;
+  color:white;
+}
+header{
+  background:#17243a;
+  padding:18px;
+  font-size:23px;
+  font-weight:bold;
+  color:#55aaff;
+  text-align:center;
+}
+main{padding:18px;max-width:600px;margin:auto}
+input,button{
+  width:100%;
+  padding:13px;
+  margin:7px 0;
+  border:0;
+  border-radius:9px;
+  font-size:15px;
+}
+input{background:#26354b;color:white}
+button{
+  background:#1685ed;
+  color:white;
+  font-weight:bold;
+}
+.secondary{background:#35445a}
+.card{
+  background:#1d2b40;
+  padding:14px;
+  border-radius:12px;
+  margin:10px 0;
+}
+.user{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.user button{width:auto}
+#messages{
+  height:48vh;
+  overflow-y:auto;
+  background:#17243a;
+  padding:12px;
+  border-radius:10px;
+}
+.msg{
+  background:#263c58;
+  padding:10px;
+  border-radius:10px;
+  margin:8px 0;
+  max-width:85%;
+  overflow-wrap:anywhere;
+}
+.mine{
+  background:#075eaa;
+  margin-left:auto;
+}
+.small{color:#aebbd0;font-size:13px}
+.hidden{display:none}
+</style>
+</head>
+
+<body>
+<header>NOVA CHAT</header>
+
+<main>
+<section id="auth">
+  <div class="card">
+    <h2>Welcome to NOVA CHAT</h2>
+    <input id="name" placeholder="Your name (for signup)">
+    <input id="email" type="email" placeholder="Email address">
+    <input id="password" type="password" placeholder="Password">
+    <button id="signup">Create Account</button>
+    <button id="login" class="secondary">Login</button>
+    <p id="authStatus" class="small"></p>
+  </div>
+</section>
+
+<section id="home" class="hidden">
+  <div class="card">
+    <div id="welcome"></div>
+    <button id="logout" class="secondary">Logout</button>
+  </div>
+  <h3>People on NOVA CHAT</h3>
+  <p class="small">Choose a registered user to start a conversation.</p>
+  <div id="users"></div>
+</section>
+
+<section id="chat" class="hidden">
+  <div class="card">
+    <button id="back" class="secondary">← Back</button>
+    <h3 id="chatName">Chat</h3>
+    <div id="messages"></div>
+    <input id="messageInput" placeholder="Type a message...">
+    <button id="send">Send Message</button>
+    <p id="chatStatus" class="small"></p>
+  </div>
+</section>
+</main>
+
+<script type="module">
+import { initializeApp }
+from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+
+import {
+  getAuth, createUserWithEmailAndPassword,
+  signInWithEmailAndPassword, onAuthStateChanged,
+  updateProfile, signOut
+} from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+
+import {
+  getFirestore, doc, setDoc, getDoc,
+  collection, onSnapshot, addDoc,
+  query, orderBy, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+// Replace these values with your Firebase console config.
+const firebaseConfig = {
+    apiKey: "AIzaSyAnPvWvdhxaelkvGcp9BnEijbTyPSZPs5A",
+    authDomain: "nova-chat-63b80.firebaseapp.com",
+    projectId: "nova-chat-63b80",
+    storageBucket: "nova-chat-63b80.firebasestorage.app",
+    messagingSenderId: "281455924917",
+    appId: "1:281455924917:web:325bc3bc933146302b50fc",
+    measurementId: "G-77CMF0TPJL"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const $ = id => document.getElementById(id);
+
+let currentUser = null;
+let selectedUser = null;
+let stopUsers = null;
+let stopMessages = null;
+
+function show(section){
+  ["auth","home","chat"].forEach(id =>
+    $(id).classList.add("hidden")
+  );
+  $(section).classList.remove("hidden");
+}
+
+$("signup").onclick = async () => {
+  const name = $("name").value.trim();
+  const email = $("email").value.trim();
+  const password = $("password").value;
+
+  if(!name || !email || password.length < 6){
+    $("authStatus").textContent =
+      "Enter name, email and password (minimum 6 characters).";
+    return;
+  }
+
+  try{
+    const result = await createUserWithEmailAndPassword(
+      auth,email,password
+    );
+    await updateProfile(result.user,{displayName:name});
+    await setDoc(doc(db,"users",result.user.uid),{
+      name,
+      createdAt:serverTimestamp()
+    });
+    $("authStatus").textContent = "Account created!";
+  }catch(error){
+    $("authStatus").textContent = error.message;
+  }
+};
+
+$("login").onclick = async () => {
+  try{
+    await signInWithEmailAndPassword(
+      auth,
+      $("email").value.trim(),
+      $("password").value
+    );
+  }catch(error){
+    $("authStatus").textContent = error.message;
+  }
+};
+
+onAuthStateChanged(auth, user => {
+  currentUser = user;
+
+  if(user){
+    $("welcome").textContent =
+      "Welcome, " + (user.displayName || "User");
+    show("home");
+    loadUsers();
+  }else{
+    if(stopUsers) stopUsers();
+    if(stopMessages) stopMessages();
+    show("auth");
+  }
+});
+
+function loadUsers(){
+  if(stopUsers) stopUsers();
+
+  stopUsers = onSnapshot(collection(db,"users"), snapshot => {
+    $("users").innerHTML = "";
+
+    snapshot.forEach(item => {
+      if(item.id === currentUser.uid) return;
+
+      const data = item.data();
+      const card = document.createElement("div");
+      card.className = "card user";
+
+      const label = document.createElement("span");
+      label.textContent = data.name || "NOVA user";
+
+      const button = document.createElement("button");
+      button.textContent = "Chat";
+      button.onclick = () => openChat(item.id,data.name);
+
+      card.append(label,button);
+      $("users").append(card);
+    });
+  }, error => {
+    $("users").textContent = error.message;
+  });
+}
+
+async function openChat(uid,name){
+  selectedUser = {uid,name};
+  $("chatName").textContent = name || "NOVA user";
+  $("messages").innerHTML = "";
+  $("chatStatus").textContent = "";
+  show("chat");
+
+  const chatId = [currentUser.uid,uid].sort().join("_");
+  const messagesRef = collection(db,"chats",chatId,"messages");
+  const q = query(messagesRef,orderBy("createdAt"));
+
+  if(stopMessages) stopMessages();
+
+  stopMessages = onSnapshot(q,snapshot => {
+    $("messages").innerHTML = "";
+
+    snapshot.forEach(item => {
+      const data = item.data();
+      const bubble = document.createElement("div");
+      bubble.className = "msg" +
+        (data.senderId === currentUser.uid ? " mine" : "");
+
+      const sender = document.createElement("b");
+      sender.textContent =
+        data.senderId === currentUser.uid ? "You" : name;
+
+      const content = document.createElement("div");
+      content.textContent = data.text || "";
+
+      bubble.append(sender,content);
+      $("messages").append(bubble);
+    });
+
+    $("messages").scrollTop = $("messages").scrollHeight;
+  },error => {
+    $("chatStatus").textContent = error.message;
+  });
+}
+
+$("send").onclick = async () => {
+  const text = $("messageInput").value.trim();
+  if(!text || !selectedUser) return;
+
+  const chatId = [
+    currentUser.uid,
+    selectedUser.uid
+  ].sort().join("_");
+
+  try{
+    await addDoc(
+      collection(db,"chats",chatId,"messages"),
+      {
+        text,
+        senderId:currentUser.uid,
+        createdAt:serverTimestamp()
+      }
+    );
+    $("messageInput").value = "";
+    $("chatStatus").textContent = "";
+  }catch(error){
+    $("chatStatus").textContent = error.message;
+  }
+};
+
+$("messageInput").addEventListener("keydown",event => {
+  if(event.key === "Enter") $("send").click();
+});
+
+$("back").onclick = () => {
+  if(stopMessages) stopMessages();
+  stopMessages = null;
+  selectedUser = null;
+  show("home");
+};
+
+$("logout").onclick = async () => {
+  await signOut(auth);
+};
+</script>
+</body>
+</html>
