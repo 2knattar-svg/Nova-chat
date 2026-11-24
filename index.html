@@ -1,83 +1,37 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NOVA CHAT</title>
-
 <style>
 *{box-sizing:border-box}
-body{
-  margin:0;
-  font-family:Arial,sans-serif;
-  background:#101827;
-  color:white;
-}
-header{
-  background:#17243a;
-  padding:18px;
-  font-size:23px;
-  font-weight:bold;
-  color:#55aaff;
-  text-align:center;
-}
+body{margin:0;font-family:Arial,sans-serif;background:#101827;color:white}
+header{background:#17243a;padding:18px;font-size:23px;font-weight:bold;color:#55aaff;text-align:center}
 main{padding:18px;max-width:600px;margin:auto}
-input,button{
-  width:100%;
-  padding:13px;
-  margin:7px 0;
-  border:0;
-  border-radius:9px;
-  font-size:15px;
-}
-input{background:#26354b;color:white}
-button{
-  background:#1685ed;
-  color:white;
-  font-weight:bold;
-}
+input,button,textarea{width:100%;padding:13px;margin:7px 0;border:0;border-radius:9px;font-size:15px}
+input,textarea{background:#26354b;color:white}
+textarea{min-height:90px;resize:vertical}
+button{background:#1685ed;color:white;font-weight:bold;cursor:pointer}
 .secondary{background:#35445a}
-.card{
-  background:#1d2b40;
-  padding:14px;
-  border-radius:12px;
-  margin:10px 0;
-}
-.user{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
-}
-.user button{width:auto}
-#messages{
-  height:48vh;
-  overflow-y:auto;
-  background:#17243a;
-  padding:12px;
-  border-radius:10px;
-}
-.msg{
-  background:#263c58;
-  padding:10px;
-  border-radius:10px;
-  margin:8px 0;
-  max-width:85%;
-  overflow-wrap:anywhere;
-}
-.mine{
-  background:#075eaa;
-  margin-left:auto;
-}
+.card{background:#1d2b40;padding:14px;border-radius:12px;margin:10px 0}
+.user{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.user button{width:auto;min-width:85px}
+#messages{height:48vh;overflow-y:auto;background:#17243a;padding:12px;border-radius:10px}
+.msg{background:#263c58;padding:10px;border-radius:10px;margin:8px 0;max-width:85%;overflow-wrap:anywhere}
+.mine{background:#075eaa;margin-left:auto}
 .small{color:#aebbd0;font-size:13px}
-.hidden{display:none}
+.hidden{display:none!important}
+.avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;background:#35445a;display:inline-flex;align-items:center;justify-content:center;color:#dce8f8;font-size:25px;flex-shrink:0}
+.profile-row{display:flex;align-items:center;gap:14px}
+.profile-row .avatar{width:76px;height:76px}
+.profile-actions{display:flex;gap:8px}
+.profile-actions button{flex:1}
+label.small{display:block;margin-top:10px}
 </style>
 </head>
-
 <body>
 <header>NOVA CHAT</header>
-
 <main>
 <section id="auth">
   <div class="card">
@@ -93,12 +47,42 @@ button{
 
 <section id="home" class="hidden">
   <div class="card">
-    <div id="welcome"></div>
-    <button id="logout" class="secondary">Logout</button>
+    <div class="profile-row">
+      <img id="homePhoto" class="avatar" alt="Profile photo">
+      <div style="flex:1;min-width:0">
+        <div id="welcome"></div>
+        <div id="homeAbout" class="small"></div>
+      </div>
+    </div>
+    <div class="profile-actions">
+      <button id="openProfile" class="secondary">My Profile</button>
+      <button id="logout" class="secondary">Logout</button>
+    </div>
   </div>
   <h3>People on NOVA CHAT</h3>
   <p class="small">Choose a registered user to start a conversation.</p>
   <div id="users"></div>
+</section>
+
+<section id="profile" class="hidden">
+  <div class="card">
+    <button id="profileBack" class="secondary">← Back</button>
+    <h2>My Profile</h2>
+    <div class="profile-row">
+      <img id="profilePreview" class="avatar" alt="Profile photo preview">
+      <div style="flex:1">
+        <label class="small" for="photoFile">Choose photo from Gallery</label>
+        <input id="photoFile" type="file" accept="image/*">
+        <p class="small">A small, compressed photo is saved in your profile.</p>
+      </div>
+    </div>
+    <label class="small" for="profileName">Name</label>
+    <input id="profileName" maxlength="40" placeholder="Your name">
+    <label class="small" for="profileAbout">About / Bio</label>
+    <textarea id="profileAbout" maxlength="150" placeholder="Write a short about you (max 150 characters)"></textarea>
+    <button id="saveProfile">Save Profile</button>
+    <p id="profileStatus" class="small"></p>
+  </div>
 </section>
 
 <section id="chat" class="hidden">
@@ -114,124 +98,135 @@ button{
 </main>
 
 <script type="module">
-import { initializeApp }
-from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
 import {
-  getAuth, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, onAuthStateChanged,
-  updateProfile, signOut
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  onAuthStateChanged, updateProfile, signOut
 } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-
 import {
-  getFirestore, doc, setDoc, getDoc,
-  collection, onSnapshot, addDoc,
-  query, orderBy, serverTimestamp
+  getFirestore, doc, setDoc, getDoc, collection, onSnapshot,
+  addDoc, query, orderBy, serverTimestamp, updateDoc
 } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-// Replace these values with your Firebase console config.
 const firebaseConfig = {
-    apiKey: "AIzaSyAnPvWvdhxaelkvGcp9BnEijbTyPSZPs5A",
-    authDomain: "nova-chat-63b80.firebaseapp.com",
-    projectId: "nova-chat-63b80",
-    storageBucket: "nova-chat-63b80.firebasestorage.app",
-    messagingSenderId: "281455924917",
-    appId: "1:281455924917:web:325bc3bc933146302b50fc",
-    measurementId: "G-77CMF0TPJL"
+  apiKey: "AIzaSyAnPvWvdhxaelkvGcp9BnEijbTyPSZPs5A",
+  authDomain: "nova-chat-63b80.firebaseapp.com",
+  projectId: "nova-chat-63b80",
+  storageBucket: "nova-chat-63b80.firebasestorage.app",
+  messagingSenderId: "281455924917",
+  appId: "1:281455924917:web:325bc3bc933146302b50fc",
+  measurementId: "G-77CMF0TPJL"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
 const $ = id => document.getElementById(id);
 
 let currentUser = null;
 let selectedUser = null;
 let stopUsers = null;
 let stopMessages = null;
+let chosenPhotoData = "";
 
-function show(section){
-  ["auth","home","chat"].forEach(id =>
-    $(id).classList.add("hidden")
-  );
+function show(section) {
+  ["auth","home","profile","chat"].forEach(id => $(id).classList.add("hidden"));
   $(section).classList.remove("hidden");
+}
+
+function setAvatar(img, data) {
+  if (data) {
+    img.src = data;
+    img.style.visibility = "visible";
+  } else {
+    img.removeAttribute("src");
+    img.style.visibility = "hidden";
+  }
+}
+
+async function getMyProfile() {
+  if (!currentUser) return {};
+  const snap = await getDoc(doc(db,"users",currentUser.uid));
+  return snap.exists() ? snap.data() : {};
+}
+
+async function refreshHomeProfile() {
+  const data = await getMyProfile();
+  $("welcome").textContent = "Welcome, " + (data.name || currentUser.displayName || "User");
+  $("homeAbout").textContent = data.about || "";
+  setAvatar($("homePhoto"), data.photoURL || "");
 }
 
 $("signup").onclick = async () => {
   const name = $("name").value.trim();
   const email = $("email").value.trim();
   const password = $("password").value;
-
-  if(!name || !email || password.length < 6){
-    $("authStatus").textContent =
-      "Enter name, email and password (minimum 6 characters).";
+  if (!name || !email || password.length < 6) {
+    $("authStatus").textContent = "Enter name, email and password (minimum 6 characters).";
     return;
   }
-
-  try{
-    const result = await createUserWithEmailAndPassword(
-      auth,email,password
-    );
+  try {
+    const result = await createUserWithEmailAndPassword(auth,email,password);
     await updateProfile(result.user,{displayName:name});
     await setDoc(doc(db,"users",result.user.uid),{
-      name,
-      createdAt:serverTimestamp()
+      name, about:"", photoURL:"", createdAt:serverTimestamp()
     });
     $("authStatus").textContent = "Account created!";
-  }catch(error){
+  } catch(error) {
     $("authStatus").textContent = error.message;
   }
 };
 
 $("login").onclick = async () => {
-  try{
-    await signInWithEmailAndPassword(
-      auth,
-      $("email").value.trim(),
-      $("password").value
-    );
-  }catch(error){
+  try {
+    await signInWithEmailAndPassword(auth,$("email").value.trim(),$("password").value);
+  } catch(error) {
     $("authStatus").textContent = error.message;
   }
 };
 
-onAuthStateChanged(auth, user => {
+onAuthStateChanged(auth, async user => {
   currentUser = user;
-
-  if(user){
-    $("welcome").textContent =
-      "Welcome, " + (user.displayName || "User");
+  if (user) {
     show("home");
+    await refreshHomeProfile();
     loadUsers();
-  }else{
-    if(stopUsers) stopUsers();
-    if(stopMessages) stopMessages();
+  } else {
+    if (stopUsers) stopUsers();
+    if (stopMessages) stopMessages();
+    stopUsers = null;
+    stopMessages = null;
     show("auth");
   }
 });
 
-function loadUsers(){
-  if(stopUsers) stopUsers();
-
+function loadUsers() {
+  if (stopUsers) stopUsers();
   stopUsers = onSnapshot(collection(db,"users"), snapshot => {
     $("users").innerHTML = "";
-
     snapshot.forEach(item => {
-      if(item.id === currentUser.uid) return;
-
+      if (item.id === currentUser.uid) return;
       const data = item.data();
       const card = document.createElement("div");
       card.className = "card user";
-
-      const label = document.createElement("span");
+      const left = document.createElement("div");
+      left.className = "profile-row";
+      const avatar = document.createElement("img");
+      avatar.className = "avatar";
+      avatar.alt = "User profile photo";
+      setAvatar(avatar, data.photoURL || "");
+      const info = document.createElement("div");
+      const label = document.createElement("strong");
       label.textContent = data.name || "NOVA user";
-
+      const about = document.createElement("div");
+      about.className = "small";
+      about.textContent = data.about || "";
+      info.append(label,about);
+      left.append(avatar,info);
       const button = document.createElement("button");
       button.textContent = "Chat";
       button.onclick = () => openChat(item.id,data.name);
-
-      card.append(label,button);
+      card.append(left,button);
       $("users").append(card);
     });
   }, error => {
@@ -239,39 +234,97 @@ function loadUsers(){
   });
 }
 
-async function openChat(uid,name){
+$("openProfile").onclick = async () => {
+  $("profileStatus").textContent = "";
+  chosenPhotoData = "";
+  const data = await getMyProfile();
+  $("profileName").value = data.name || currentUser.displayName || "";
+  $("profileAbout").value = data.about || "";
+  setAvatar($("profilePreview"), data.photoURL || "");
+  show("profile");
+};
+
+$("photoFile").onchange = async event => {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    $("profileStatus").textContent = "Please choose an image file.";
+    return;
+  }
+  try {
+    const image = new Image();
+    const source = URL.createObjectURL(file);
+    image.onload = () => {
+      const maxSide = 180;
+      const scale = Math.min(1, maxSide / Math.max(image.width,image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1,Math.round(image.width * scale));
+      canvas.height = Math.max(1,Math.round(image.height * scale));
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image,0,0,canvas.width,canvas.height);
+      chosenPhotoData = canvas.toDataURL("image/jpeg",0.55);
+      setAvatar($("profilePreview"),chosenPhotoData);
+      $("profileStatus").textContent = "Photo selected. Tap Save Profile.";
+      URL.revokeObjectURL(source);
+    };
+    image.onerror = () => {
+      $("profileStatus").textContent = "Could not read this image. Try another photo.";
+      URL.revokeObjectURL(source);
+    };
+    image.src = source;
+  } catch(error) {
+    $("profileStatus").textContent = error.message;
+  }
+};
+
+$("saveProfile").onclick = async () => {
+  const name = $("profileName").value.trim();
+  const about = $("profileAbout").value.trim();
+  if (!name || name.length > 40 || about.length > 150) {
+    $("profileStatus").textContent = "Enter a name (1–40 characters) and bio up to 150 characters.";
+    return;
+  }
+  try {
+    $("saveProfile").disabled = true;
+    const updates = {name,about};
+    if (chosenPhotoData) updates.photoURL = chosenPhotoData;
+    await updateDoc(doc(db,"users",currentUser.uid),updates);
+    await updateProfile(currentUser,{displayName:name});
+    chosenPhotoData = "";
+    $("profileStatus").textContent = "Profile saved!";
+    await refreshHomeProfile();
+    loadUsers();
+    show("home");
+  } catch(error) {
+    $("profileStatus").textContent = "Could not save: " + error.message;
+  } finally {
+    $("saveProfile").disabled = false;
+  }
+};
+
+async function openChat(uid,name) {
   selectedUser = {uid,name};
   $("chatName").textContent = name || "NOVA user";
   $("messages").innerHTML = "";
   $("chatStatus").textContent = "";
   show("chat");
-
   const chatId = [currentUser.uid,uid].sort().join("_");
   const messagesRef = collection(db,"chats",chatId,"messages");
   const q = query(messagesRef,orderBy("createdAt"));
-
-  if(stopMessages) stopMessages();
-
+  if (stopMessages) stopMessages();
   stopMessages = onSnapshot(q,snapshot => {
     $("messages").innerHTML = "";
-
     snapshot.forEach(item => {
       const data = item.data();
       const bubble = document.createElement("div");
-      bubble.className = "msg" +
-        (data.senderId === currentUser.uid ? " mine" : "");
-
+      bubble.className = "msg" + (data.senderId === currentUser.uid ? " mine" : "");
       const sender = document.createElement("b");
-      sender.textContent =
-        data.senderId === currentUser.uid ? "You" : name;
-
+      sender.textContent = data.senderId === currentUser.uid ? "You" : (name || "NOVA user");
       const content = document.createElement("div");
       content.textContent = data.text || "";
-
       bubble.append(sender,content);
       $("messages").append(bubble);
     });
-
     $("messages").scrollTop = $("messages").scrollHeight;
   },error => {
     $("chatStatus").textContent = error.message;
@@ -280,43 +333,30 @@ async function openChat(uid,name){
 
 $("send").onclick = async () => {
   const text = $("messageInput").value.trim();
-  if(!text || !selectedUser) return;
-
-  const chatId = [
-    currentUser.uid,
-    selectedUser.uid
-  ].sort().join("_");
-
-  try{
-    await addDoc(
-      collection(db,"chats",chatId,"messages"),
-      {
-        text,
-        senderId:currentUser.uid,
-        createdAt:serverTimestamp()
-      }
-    );
+  if (!text || !selectedUser) return;
+  const chatId = [currentUser.uid,selectedUser.uid].sort().join("_");
+  try {
+    await addDoc(collection(db,"chats",chatId,"messages"),{
+      text,senderId:currentUser.uid,createdAt:serverTimestamp()
+    });
     $("messageInput").value = "";
     $("chatStatus").textContent = "";
-  }catch(error){
+  } catch(error) {
     $("chatStatus").textContent = error.message;
   }
 };
 
 $("messageInput").addEventListener("keydown",event => {
-  if(event.key === "Enter") $("send").click();
+  if (event.key === "Enter") $("send").click();
 });
-
 $("back").onclick = () => {
-  if(stopMessages) stopMessages();
+  if (stopMessages) stopMessages();
   stopMessages = null;
   selectedUser = null;
   show("home");
 };
-
-$("logout").onclick = async () => {
-  await signOut(auth);
-};
+$("profileBack").onclick = () => show("home");
+$("logout").onclick = async () => signOut(auth);
 </script>
 </body>
 </html>
