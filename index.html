@@ -5,28 +5,118 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NOVA CHAT</title>
 <style>
+
 *{box-sizing:border-box}
-body{margin:0;font-family:Arial,sans-serif;background:#101827;color:white}
-header{background:#17243a;padding:18px;font-size:23px;font-weight:bold;color:#55aaff;text-align:center}
+
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#101827;
+  color:white;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-touch-callout:none;
+}
+
+header{
+  background:#17243a;
+  padding:18px;
+  font-size:23px;
+  font-weight:bold;
+  color:#55aaff;
+  text-align:center
+}
+
 main{padding:18px;max-width:600px;margin:auto}
-input,button,textarea{width:100%;padding:13px;margin:7px 0;border:0;border-radius:9px;font-size:15px}
-input,textarea{background:#26354b;color:white}
+
+input,button,textarea{
+  width:100%;
+  padding:13px;
+  margin:7px 0;
+  border:0;
+  border-radius:9px;
+  font-size:15px
+}
+
+input,textarea{
+  background:#26354b;
+  color:white;
+  -webkit-user-select:text;
+  user-select:text;
+}
+
 textarea{min-height:90px;resize:vertical}
-button{background:#1685ed;color:white;font-weight:bold;cursor:pointer}
+
+button{
+  background:#1685ed;
+  color:white;
+  font-weight:bold;
+  cursor:pointer
+}
+
 .secondary{background:#35445a}
-.card{background:#1d2b40;padding:14px;border-radius:12px;margin:10px 0}
-.user{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+.card{
+  background:#1d2b40;
+  padding:14px;
+  border-radius:12px;
+  margin:10px 0
+}
+
+.user{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px
+}
+
 .user button{width:auto;min-width:85px}
-#messages{height:48vh;overflow-y:auto;background:#17243a;padding:12px;border-radius:10px}
-.msg{background:#263c58;padding:10px;border-radius:10px;margin:8px 0;max-width:85%;overflow-wrap:anywhere}
+
+#messages{
+  height:48vh;
+  overflow-y:auto;
+  background:#17243a;
+  padding:12px;
+  border-radius:10px
+}
+
+.msg{
+  background:#263c58;
+  padding:10px;
+  border-radius:10px;
+  margin:8px 0;
+  max-width:85%;
+  overflow-wrap:anywhere
+}
+
 .mine{background:#075eaa;margin-left:auto}
+
 .small{color:#aebbd0;font-size:13px}
+
 .hidden{display:none!important}
-.avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;background:#35445a;display:inline-flex;align-items:center;justify-content:center;color:#dce8f8;font-size:25px;flex-shrink:0}
+
+.avatar{
+  width:64px;
+  height:64px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#35445a;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:#dce8f8;
+  font-size:25px;
+  flex-shrink:0
+}
+
 .profile-row{display:flex;align-items:center;gap:14px}
+
 .profile-row .avatar{width:76px;height:76px}
+
 .profile-actions{display:flex;gap:8px}
+
 .profile-actions button{flex:1}
+
 label.small{display:block;margin-top:10px}
 </style>
 </head>
