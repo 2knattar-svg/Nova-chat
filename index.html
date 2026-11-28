@@ -99,6 +99,14 @@ label.small{display:block;margin-top:10px}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+  import {
+  getDatabase,
+  ref,
+  set,
+  onValue,
+  onDisconnect,
+  serverTimestamp as rtdbServerTimestamp
+} from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
   onAuthStateChanged, updateProfile, signOut
@@ -121,13 +129,40 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+  const rtdb = getDatabase(app, "https://nova-chat-63b80-default-rtdb.asia-southeast1.firebasedatabase.app");
 const $ = id => document.getElementById(id);
-
 let currentUser = null;
 let selectedUser = null;
 let stopUsers = null;
 let stopMessages = null;
 let chosenPhotoData = "";
+  let stopPresence = null;
+let statusStops = [];
+
+function startPresence(uid) {
+  const connectedRef = ref(rtdb, ".info/connected");
+  const userStatusRef = ref(rtdb, "status/" + uid);
+
+  if (stopPresence) stopPresence();
+
+  stopPresence = onValue(connectedRef, async snapshot => {
+    if (snapshot.val() !== true) return;
+
+    try {
+      await onDisconnect(userStatusRef).set({
+        state: "offline",
+        last_changed: rtdbServerTimestamp()
+      });
+
+      await set(userStatusRef, {
+        state: "online",
+        last_changed: rtdbServerTimestamp()
+      });
+    } catch (error) {
+      console.error("Presence error:", error);
+    }
+  });
+}
 
 function show(section) {
   ["auth","home","profile","chat"].forEach(id => $(id).classList.add("hidden"));
@@ -188,6 +223,7 @@ $("login").onclick = async () => {
 onAuthStateChanged(auth, async user => {
   currentUser = user;
   if (user) {
+    startPresence(user.uid);
     show("home");
     await refreshHomeProfile();
     loadUsers();
@@ -202,47 +238,68 @@ onAuthStateChanged(auth, async user => {
 
 function loadUsers() {
   if (stopUsers) stopUsers();
+
   stopUsers = onSnapshot(collection(db,"users"), snapshot => {
+    statusStops.forEach(stop => stop());
+    statusStops = [];
+
     $("users").innerHTML = "";
+
     snapshot.forEach(item => {
       if (item.id === currentUser.uid) return;
+
       const data = item.data();
       const card = document.createElement("div");
       card.className = "card user";
+
       const left = document.createElement("div");
       left.className = "profile-row";
+
       const avatar = document.createElement("img");
       avatar.className = "avatar";
       avatar.alt = "User profile photo";
       setAvatar(avatar, data.photoURL || "");
+
       const info = document.createElement("div");
+
       const label = document.createElement("strong");
       label.textContent = data.name || "NOVA user";
+
       const about = document.createElement("div");
       about.className = "small";
       about.textContent = data.about || "";
-      info.append(label,about);
-      left.append(avatar,info);
+
+      const status = document.createElement("div");
+      status.className = "small";
+      status.textContent = "Checking status...";
+
+      const statusRef = ref(rtdb, "status/" + item.id);
+
+      const stopStatus = onValue(statusRef, statusSnap => {
+        const value = statusSnap.val();
+
+        status.textContent =
+          value && value.state === "online"
+            ? "🟢 Online"
+            : "⚫ Offline";
+      });
+
+      statusStops.push(stopStatus);
+
+      info.append(label, about, status);
+      left.append(avatar, info);
+
       const button = document.createElement("button");
       button.textContent = "Chat";
-      button.onclick = () => openChat(item.id,data.name);
-      card.append(left,button);
+      button.onclick = () => openChat(item.id, data.name);
+
+      card.append(left, button);
       $("users").append(card);
     });
   }, error => {
     $("users").textContent = error.message;
   });
 }
-
-$("openProfile").onclick = async () => {
-  $("profileStatus").textContent = "";
-  chosenPhotoData = "";
-  const data = await getMyProfile();
-  $("profileName").value = data.name || currentUser.displayName || "";
-  $("profileAbout").value = data.about || "";
-  setAvatar($("profilePreview"), data.photoURL || "");
-  show("profile");
-};
 
 $("photoFile").onchange = async event => {
   const file = event.target.files && event.target.files[0];
@@ -356,7 +413,26 @@ $("back").onclick = () => {
   show("home");
 };
 $("profileBack").onclick = () => show("home");
-$("logout").onclick = async () => signOut(auth);
+$("logout").onclick = async () => {
+  try {
+    if (currentUser) {
+      await set(ref(rtdb, "status/" + currentUser.uid), {
+        state: "offline",
+        last_changed: rtdbServerTimestamp()
+      });
+    }
+
+    if (stopPresence) {
+      stopPresence();
+      stopPresence = null;
+    }
+
+    await signOut(auth);
+  } catch (error) {
+    console.error(error);
+    alert("Logout error: " + error.message);
+  }
+};
 </script>
 </body>
 </html>
